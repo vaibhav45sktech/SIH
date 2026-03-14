@@ -148,26 +148,67 @@ class ProcessingEngine:
     ) -> Tuple[Optional[float], Optional[RiskLevel]]:
         """
         Calculate composite risk index (0-100).
-        
+
         Args:
             trend_indicator: Trend classification
             trend_magnitude: Magnitude of trend change
             seasonal_deviation: Deviation from seasonal baseline
-        
+
         Returns:
             Tuple of (risk_index, RiskLevel)
         """
         if trend_indicator == TrendIndicator.INSUFFICIENT_DATA:
             return None, None
-        
-        # TODO: Implement risk index calculation
-        # - Convert trend to 0-100 component (60% weight)
-        # - Convert seasonal deviation to 0-100 component (40% weight)
-        # - Combine weighted components
-        # - Classify into risk levels
-        
-        return None, None
-    
+
+        # --- Trend Component (0-100) ---
+        if trend_indicator == TrendIndicator.RECHARGING:
+            trend_score = 0.0
+        elif trend_indicator == TrendIndicator.STABLE:
+            trend_score = 10.0
+        else:  # DEPLETING — score by magnitude
+            if trend_magnitude is None:
+                trend_score = 50.0
+            else:
+                abs_magnitude = abs(trend_magnitude)
+                # magnitude = slope * window_days (365)
+                # LOW: < 0.0007 * 365 = 0.255m
+                # MEDIUM: 0.255m - 0.5475m
+                # STRONG: > 0.5475m
+                if abs_magnitude < 0.255:
+                    trend_score = 50.0
+                elif abs_magnitude < 0.5475:
+                    trend_score = 75.0
+                else:
+                    trend_score = 100.0
+
+        # --- Seasonal Component (0-100) ---
+        if seasonal_deviation is None:
+            seasonal_score = 50.0  # Neutral — no data
+        elif seasonal_deviation > 0.05:
+            seasonal_score = 0.0   # Above normal — favorable
+        elif abs(seasonal_deviation) <= 0.05:
+            seasonal_score = 20.0  # Normal
+        elif seasonal_deviation >= -1.0:
+            seasonal_score = 50.0  # Below normal, moderate
+        else:
+            seasonal_score = 80.0  # Below normal by >1m, concerning
+
+        # --- Composite Score ---
+        risk_index = (trend_score * self.risk_trend_weight) + (seasonal_score * self.risk_seasonal_weight)
+        risk_index = round(risk_index, 1)
+
+        # --- Classify Risk Level ---
+        if risk_index < config.risk_low_threshold:
+            risk_level = RiskLevel.LOW
+        elif risk_index < config.risk_moderate_threshold:
+            risk_level = RiskLevel.MODERATE
+        elif risk_index < 80.0:
+            risk_level = RiskLevel.HIGH
+        else:   
+            risk_level = RiskLevel.CRITICAL
+
+        return risk_index, risk_level
+
     def _create_empty_metrics(
         self,
         readings: List[Reading],

@@ -7,9 +7,9 @@ CSV_FILE = "groundwater_data.csv"
 
 # The 3 MVP stations selected from analysis
 MVP_STATIONS = {
-    "272315075030001": {"name": "Station 272315075030001", "trend": "DEPLETING"},
-    "300215074204501": {"name": "Station 300215074204501", "trend": "RECHARGING"},
-    "242112081493301": {"name": "Station 242112081493301", "trend": "STABLE"},
+    "272315075030001": {"name": "Depleting Well (272315...)", "trend": "DEPLETING"},
+    "300215074204501": {"name": "Recharging Well (300215...)", "trend": "RECHARGING"},
+    "242112081493301": {"name": "Stable Well (242112...)", "trend": "STABLE"},
 }
 
 def main():

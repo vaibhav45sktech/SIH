@@ -6,6 +6,7 @@ import logging
 from datetime import datetime, timedelta
 
 import streamlit as st
+import pandas as pd
 
 from api_client import NWDPClient
 from config import config
@@ -248,8 +249,8 @@ def display_station_details(station: Station, data_store: DataStore, reference_d
 
         # Save metrics so subsequent renders use the cache
         data_store.save_metrics(metrics)
-    else:
-        st.caption("📦 Metrics loaded from cache.")
+    # else:
+    #     st.caption("📦 Metrics loaded from cache.")
 
     col1, col2 = st.columns(2)
 
@@ -276,8 +277,95 @@ def display_station_details(station: Station, data_store: DataStore, reference_d
     st.info(insight)
 
     st.subheader("Groundwater Level Chart")
-    st.info("Chart visualization not yet implemented.")
 
+    # Fetch all readings for chart (metrics window may be different)
+    chart_readings = data_store.get_readings(station.station_id)
+
+    if chart_readings:
+        import plotly.graph_objects as go
+        import numpy as np
+
+        # Build dataframe for chart
+        chart_df = pd.DataFrame([
+            {"date": r.timestamp, "water_level_m": r.water_level_m}
+            for r in chart_readings
+        ]).sort_values("date")
+        
+        # Ensure y-axis has minimum 10m span to avoid exaggeration
+        y_min = chart_df["water_level_m"].min()
+        y_max = chart_df["water_level_m"].max()
+        y_span = y_max - y_min
+        if y_span < 10:
+            padding = (10 - y_span) / 2
+            y_range = [y_max + padding, y_min - padding]  # reversed
+        else:
+            y_range = [y_max + 1, y_min - 1]  # reversed, small padding
+
+        # Determine chart color based on trend
+        trend_colors = {
+            "Recharging": "#2196F3",   # blue
+            "Depleting":  "#F44336",   # red
+            "Stable":     "#9E9E9E",   # grey
+            "Insufficient Data": "#9E9E9E"
+        }
+        line_color = trend_colors.get(metrics.trend_indicator.value, "#9E9E9E")
+
+        fig = go.Figure()
+
+        # Actual readings line
+        fig.add_trace(go.Scatter(
+            x=chart_df["date"],
+            y=chart_df["water_level_m"],
+            mode="lines+markers",
+            name="Water Level (m)",
+            line=dict(color=line_color, width=2),
+            marker=dict(size=4),
+            hovertemplate="<b>%{x|%Y-%m-%d}</b><br>Water Level: %{y:.2f}m<extra></extra>"
+        ))
+
+        # Trend line overlay — always calculate directly from readings
+        from scipy import stats as scipy_stats
+
+        first_date = chart_df["date"].iloc[0]
+        x_days = np.array([(d - first_date).days for d in chart_df["date"]])
+        slope_result = scipy_stats.linregress(x_days, chart_df["water_level_m"].values)
+        slope = slope_result.slope
+        intercept = float(np.mean(chart_df["water_level_m"]) - slope * np.mean(x_days))
+        trend_y = intercept + slope * x_days
+
+        fig.add_trace(go.Scatter(
+            x=chart_df["date"],
+            y=trend_y,
+            mode="lines",
+            name="Trend Line",
+            line=dict(color=line_color, width=2, dash="dash"),
+            hovertemplate="<b>%{x|%Y-%m-%d}</b><br>Trend: %{y:.2f}m<extra></extra>"
+        ))
+
+        # Chart layout
+        fig.update_layout(
+            title=dict(
+                text=f"{station.name} — Groundwater Level Over Time",
+                font=dict(size=16)
+            ),
+            xaxis=dict(title="Date", showgrid=True, gridcolor="#333333"),
+            yaxis=dict(
+                title="Water Level (m below ground)",
+                showgrid=True,
+                gridcolor="#333333",
+                range=y_range # Higher depth = lower on chart (more intuitive)
+            ),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            hovermode="x unified",
+            plot_bgcolor="#1e1e1e",
+            paper_bgcolor="#1e1e1e",
+            font=dict(color="#ffffff"),
+            height=450
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("No readings available for chart.")
 
 if __name__ == "__main__":
     main()
