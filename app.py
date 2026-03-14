@@ -68,11 +68,13 @@ def main():
     # ------------------------------------------------------------------
     if not stations:
         try:
-            readings = data_store.get_readings(None)
+            with data_store._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT DISTINCT station_id FROM readings LIMIT 10")
+                rows = cursor.fetchall()
+                station_ids = [row["station_id"] for row in rows]
 
-            if readings:
-                station_ids = list(set(r.station_id for r in readings))
-
+            if station_ids:
                 stations = [
                     Station(
                         station_id=sid,
@@ -82,7 +84,6 @@ def main():
                     )
                     for sid in station_ids
                 ]
-
                 st.info("Stations automatically derived from dataset readings.")
 
         except Exception:
@@ -227,24 +228,28 @@ def display_station_details(station: Station, data_store: DataStore, reference_d
     end_datetime = datetime.combine(end_date, datetime.max.time())
     start_datetime = datetime.combine(start_date, datetime.min.time())
 
-    readings = data_store.get_readings(
-        station.station_id,
-        start_datetime,
-        end_datetime
-    )
+    # Fix 3: Check for cached metrics first — only recalculate if none exist
+    metrics = data_store.get_latest_metrics(station.station_id)
 
-    if not readings:
-        st.warning(f"No readings found for station {station.station_id}")
-        return
+    if metrics is None:
+        readings = data_store.get_readings(station.station_id)
 
-    processing_engine = st.session_state.processing_engine
+        if not readings:
+            st.warning(f"No readings found for station {station.station_id}")
+            return
 
-    calculation_datetime = datetime.combine(reference_date, datetime.min.time())
+        processing_engine = st.session_state.processing_engine
+        calculation_datetime = datetime.combine(reference_date, datetime.min.time())
 
-    metrics = processing_engine.calculate_metrics(
-        readings,
-        calculation_date=calculation_datetime
-    )
+        metrics = processing_engine.calculate_metrics(
+            readings,
+            calculation_date=calculation_datetime
+        )
+
+        # Save metrics so subsequent renders use the cache
+        data_store.save_metrics(metrics)
+    else:
+        st.caption("📦 Metrics loaded from cache.")
 
     col1, col2 = st.columns(2)
 

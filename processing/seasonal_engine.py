@@ -18,7 +18,7 @@ class SeasonalEngine:
     def calculate_seasonal_deviation(
         self,
         readings: List[Reading],
-        window_days: int = 90,
+        window_days: int = 365,
         years: int = 3,
         reference_date: Optional[datetime] = None
     ) -> Optional[SeasonalMetrics]:

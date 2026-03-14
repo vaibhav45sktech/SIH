@@ -23,7 +23,7 @@ class Config:
     db_path: str = os.getenv("DB_PATH", "groundwater_data.db")
     
     # Processing settings
-    trend_window_days: int = int(os.getenv("TREND_WINDOW_DAYS", "90"))
+    trend_window_days: int = int(os.getenv("TREND_WINDOW_DAYS", "365"))
     seasonal_comparison_years: int = int(os.getenv("SEASONAL_COMPARISON_YEARS", "2"))
     
     # Risk index weights

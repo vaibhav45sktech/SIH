@@ -9,7 +9,7 @@ from datetime import date, datetime
 from typing import List, Optional
 
 from config import config
-from models.metrics import Metrics
+from models.metrics import Metrics, TrendIndicator, RiskLevel
 from models.reading import Reading
 from models.station import Station
 
@@ -273,6 +273,28 @@ class DataStore:
     
     def get_latest_metrics(self, station_id: str) -> Optional[Metrics]:
         """Retrieve the most recent metrics for a station."""
-        # TODO: Implement metrics retrieval
-        return None
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM metrics 
+                WHERE station_id = ? 
+                ORDER BY calculation_date DESC 
+                LIMIT 1
+            """, (station_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return Metrics(
+                station_id=row["station_id"],
+                calculation_date=datetime.fromisoformat(row["calculation_date"]) if isinstance(row["calculation_date"], str) else row["calculation_date"],
+                trend_indicator=TrendIndicator(row["trend_indicator"]),
+                trend_magnitude=row["trend_magnitude"],
+                trend_period_days=row["trend_period_days"],
+                seasonal_deviation=row["seasonal_deviation"],
+                seasonal_baseline=row["seasonal_baseline"],
+                risk_index=row["risk_index"],
+                risk_level=RiskLevel(row["risk_level"]) if row["risk_level"] else None,
+                data_points_used=row["data_points_used"],
+                calculation_notes=row["calculation_notes"]
+            )
 
