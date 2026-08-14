@@ -35,6 +35,12 @@ class Config:
     # reported a 10-year one. The median station is sampled every ~92 days, so a
     # 1-year window rests on only ~4 points.
     trend_window_days: int = int(os.getenv("TREND_WINDOW_DAYS", "3650"))
+
+    # Seasonal deviation needs its OWN window and must stay at ~1 year. It compares
+    # the current window against the same window offset by whole years, so a window
+    # longer than the offset makes those windows overlap and the comparison
+    # meaningless. Do not reuse trend_window_days here.
+    seasonal_window_days: int = int(os.getenv("SEASONAL_WINDOW_DAYS", "365"))
     seasonal_comparison_years: int = int(os.getenv("SEASONAL_COMPARISON_YEARS", "2"))
     
     # Risk index weights

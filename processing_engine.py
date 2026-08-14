@@ -31,6 +31,7 @@ class ProcessingEngine:
     def __init__(self):
         """Initialize processing engine."""
         self.trend_window_days = config.trend_window_days
+        self.seasonal_window_days = config.seasonal_window_days
         self.seasonal_comparison_years = config.seasonal_comparison_years
         self.risk_trend_weight = config.risk_trend_weight
         self.risk_seasonal_weight = config.risk_seasonal_weight
@@ -75,7 +76,7 @@ class ProcessingEngine:
         # Calculate seasonal deviation using SeasonalEngine
         seasonal_metrics = self.seasonal_engine.calculate_seasonal_deviation(
             readings,
-            self.trend_window_days,
+            self.seasonal_window_days,
             self.seasonal_comparison_years,
             reference_date=calculation_date
         )
