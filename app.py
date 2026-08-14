@@ -3,10 +3,15 @@ Streamlit dashboard application for Groundwater Recharge Insight Dashboard.
 """
 
 import logging
+import os
 from datetime import datetime, timedelta
 
 import streamlit as st
 import pandas as pd
+from dotenv import load_dotenv
+
+# Load .env before anything reads os.environ (notably the notifier factory).
+load_dotenv()
 
 from api_client import NWDPClient
 from config import config
@@ -69,9 +74,34 @@ def main():
 
         st.caption(f"Trend window: {config.trend_window_days} days")
 
+        notifier_name = os.getenv("NOTIFIER", "console").strip().lower()
+        if notifier_name == "console":
+            st.info("Notifier: **CONSOLE** (nothing is delivered)")
+        else:
+            st.warning(f"Notifier: **{notifier_name.upper()}** — messages go to real recipients")
+
+        st.divider()
+        page = st.radio(
+            "Page",
+            ["📊 Dashboard", "📝 Register Farmer", "👥 Farmers & Alerts"],
+            label_visibility="collapsed",
+        )
+
         if st.button("🔄 Refresh Data"):
             st.session_state.refresh_triggered = True
 
+    if page == "📝 Register Farmer":
+        render_register_farmer()
+        return
+    if page == "👥 Farmers & Alerts":
+        render_farmers_and_alerts()
+        return
+
+    render_dashboard()
+
+
+def render_dashboard():
+    """Station analytics dashboard (the original view)."""
     data_store = st.session_state.data_store
 
     # Get stations
@@ -387,6 +417,297 @@ def display_station_details(station: Station, data_store: DataStore, reference_d
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.warning("No readings available for chart.")
+
+
+# ==========================================================================
+# ADVISORY MESSAGING PAGES
+# ==========================================================================
+
+
+def _messaging_store():
+    """Lazily construct the messaging store, caching it in session state."""
+    from messaging.store import MessagingStore
+
+    if "messaging_store" not in st.session_state:
+        st.session_state.messaging_store = MessagingStore()
+    return st.session_state.messaging_store
+
+
+def render_register_farmer():
+    """Farmer registration, with a consent gate and the 25 km station rule."""
+    from messaging.models import Language, PhoneError
+    from messaging.store import (
+        MAX_STATION_DISTANCE_KM,
+        NoNearbyStationError,
+        RegistrationError,
+    )
+
+    st.header("📝 Register Farmer")
+    st.caption(
+        "Farmers receive advisories on WhatsApp in their chosen language. "
+        f"Registration requires a monitoring station within "
+        f"{MAX_STATION_DISTANCE_KM:.0f} km — an advisory from further away "
+        f"would not describe this farmer's groundwater."
+    )
+
+    store = _messaging_store()
+    data_store = st.session_state.data_store
+    stations = data_store.get_all_stations()
+
+    if not stations:
+        st.error("No stations loaded. Run `python load_dataset.py` first.")
+        return
+
+    with st.form("register_farmer", clear_on_submit=False):
+        col1, col2 = st.columns(2)
+        with col1:
+            name = st.text_input("Farmer name *", placeholder="Balwinder Singh")
+            village = st.text_input("Village *", placeholder="Longowal")
+            phone = st.text_input(
+                "Mobile number *",
+                placeholder="9876543210",
+                help="Accepts 9876543210, 09876543210, 919876543210 or +919876543210.",
+            )
+        with col2:
+            district = st.text_input("District *", placeholder="Sangrur")
+            language = st.selectbox(
+                "Preferred language *",
+                options=list(Language),
+                format_func=lambda l: l.label,
+            )
+            registered_by = st.text_input("Registered by", placeholder="Field officer name")
+
+        st.markdown("**Location** — used to assign the nearest monitoring station.")
+        loc1, loc2 = st.columns(2)
+        with loc1:
+            latitude = st.number_input(
+                "Latitude *", value=30.2000, min_value=6.0, max_value=38.0, format="%.4f"
+            )
+        with loc2:
+            longitude = st.number_input(
+                "Longitude *", value=75.8000, min_value=68.0, max_value=98.0, format="%.4f"
+            )
+
+        st.divider()
+        consent = st.checkbox(
+            "The farmer has given consent to receive groundwater advisory "
+            "messages on this number.",
+            value=False,
+        )
+        st.caption(
+            "Consent is mandatory. Without it the farmer is not registered at all — "
+            "there is no unconsented record."
+        )
+
+        submitted = st.form_submit_button("Register farmer", type="primary")
+
+    if not submitted:
+        return
+
+    # Consent gate: block submission rather than storing an unconsented row.
+    if not consent:
+        st.error(
+            "🚫 **Cannot register without consent.** Tick the consent checkbox. "
+            "Consent is captured at registration or the farmer is not registered."
+        )
+        return
+
+    missing = [
+        label
+        for label, value in (
+            ("name", name), ("village", village), ("phone", phone), ("district", district),
+        )
+        if not str(value).strip()
+    ]
+    if missing:
+        st.error(f"Please fill in the required field(s): {', '.join(missing)}.")
+        return
+
+    try:
+        farmer = store.register_farmer(
+            name=name,
+            phone=phone,
+            village=village,
+            district=district,
+            language=language,
+            latitude=latitude,
+            longitude=longitude,
+            consent=True,
+            registered_by=registered_by or None,
+        )
+    except NoNearbyStationError as exc:
+        st.error(f"🚫 **Registration refused — no station within range**\n\n{exc}")
+        nearest_id, nearest_km = store.find_nearest_station(latitude, longitude)
+        if nearest_id:
+            st.info(
+                f"Nearest station is **{nearest_id}** at **{nearest_km:.1f} km** "
+                f"(limit is {MAX_STATION_DISTANCE_KM:.0f} km)."
+            )
+        return
+    except PhoneError as exc:
+        st.error(f"🚫 **Invalid phone number**\n\n{exc}")
+        return
+    except RegistrationError as exc:
+        st.error(f"🚫 **Could not register**\n\n{exc}")
+        return
+    except ValueError as exc:
+        st.error(f"🚫 **Could not register**\n\n{exc}")
+        return
+
+    st.success(f"✅ Registered **{farmer.name}** (id {farmer.id})")
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Assigned station", farmer.nearest_station_id)
+    m2.metric("Distance", f"{farmer.distance_km:.1f} km")
+    m3.metric("Language", farmer.language.label)
+    st.caption(
+        f"Stored number: {farmer.phone_masked}  ·  log id: {farmer.phone_hashed}  ·  "
+        f"consent recorded {farmer.consent_ts}"
+    )
+
+    with st.expander("Preview the message this farmer would receive"):
+        from messaging.composer import TemplateError, compose
+
+        for band, reason in (
+            ("CRITICAL", "DEFAULT"), ("WARNING", "DEFAULT"),
+            ("WATCH", "DEFAULT"), ("NORMAL", "RECOVERED"),
+        ):
+            try:
+                composed = compose(
+                    band, reason, farmer.language,
+                    {
+                        "village": farmer.village,
+                        "district": farmer.district,
+                        "decline_m_per_year": "0.58",
+                    },
+                )
+                st.markdown(f"**{band}** — `{composed.template_key}`")
+                st.info(composed.text)
+            except TemplateError as exc:
+                st.warning(f"{band}: {exc}")
+
+
+def render_farmers_and_alerts():
+    """Operator view: registered farmers (masked) and full alert history."""
+    from messaging.models import AlertStatus
+
+    st.header("👥 Farmers & Alerts")
+    store = _messaging_store()
+
+    farmers = store.all_farmers(include_inactive=True)
+    alerts = store.all_alerts(limit=500)
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Farmers", len(farmers))
+    c2.metric("Active", sum(1 for f in farmers if f.active and f.consent))
+    c3.metric("Alerts sent", sum(1 for a in alerts if a.status is AlertStatus.SENT))
+    c4.metric("Suppressed", sum(1 for a in alerts if a.status is AlertStatus.SUPPRESSED))
+
+    st.subheader("Registered farmers")
+    if not farmers:
+        st.info("No farmers registered yet. Use the Register Farmer page.")
+    else:
+        st.dataframe(
+            pd.DataFrame([
+                {
+                    "id": f.id,
+                    "name": f.name,
+                    # Masked, never raw. The operator UI must not expose numbers.
+                    "phone": f.phone_masked,
+                    "village": f.village,
+                    "district": f.district,
+                    "lang": f.language.value,
+                    "station": f.nearest_station_id,
+                    "dist_km": round(f.distance_km, 1) if f.distance_km is not None else None,
+                    "consent": "yes" if f.consent else "no",
+                    "active": "yes" if f.active else "opted out",
+                    "registered_by": f.registered_by or "—",
+                }
+                for f in farmers
+            ]),
+            use_container_width=True,
+            hide_index=True,
+        )
+        st.caption(
+            "Phone numbers are masked. Opted-out farmers are retained, never "
+            "deleted, so the consent trail stays auditable."
+        )
+
+        active_ids = [f.id for f in farmers if f.active]
+        if active_ids:
+            with st.expander("Opt a farmer out"):
+                target = st.selectbox("Farmer id", active_ids, key="optout_target")
+                if st.button("Opt out", key="optout_btn"):
+                    store.opt_out(target)
+                    st.success(f"Farmer {target} opted out. Row retained for audit.")
+                    st.rerun()
+
+    st.subheader("Alert history")
+    st.caption(
+        "Suppressed rows are included deliberately — they show what the system "
+        "chose NOT to send, which is as important as what it did send."
+    )
+
+    if not alerts:
+        st.info(
+            "No alerts yet. Try: `python -m messaging.dispatch --all --dry-run`, "
+            "then run it without --dry-run to record sends."
+        )
+        return
+
+    status_filter = st.multiselect(
+        "Filter by status",
+        options=[s.value for s in AlertStatus],
+        default=[s.value for s in AlertStatus],
+    )
+
+    farmer_names = {f.id: f.name for f in farmers}
+    rows = [
+        {
+            "id": a.id,
+            "farmer": farmer_names.get(a.farmer_id, f"id {a.farmer_id}"),
+            "station": a.station_id,
+            "band": a.band,
+            "reason_code": a.reason_code,
+            "lang": a.language,
+            "template_key": a.template_key,
+            "status": a.status.value,
+            "provider": a.provider or "—",
+            "attempts": a.attempts,
+            "created": a.created_ts,
+            "message": a.message_text,
+        }
+        for a in alerts
+        if a.status.value in status_filter
+    ]
+    if not rows:
+        st.info("No alerts match the selected statuses.")
+        return
+
+    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+    st.subheader("Message detail")
+    chosen = st.selectbox(
+        "Alert id",
+        [r["id"] for r in rows],
+        format_func=lambda i: f"#{i} — {next(r['band'] for r in rows if r['id'] == i)}"
+                              f" / {next(r['status'] for r in rows if r['id'] == i)}",
+    )
+    alert = next(a for a in alerts if a.id == chosen)
+    badge = {
+        AlertStatus.SENT: st.success,
+        AlertStatus.SUPPRESSED: st.warning,
+        AlertStatus.FAILED: st.error,
+        AlertStatus.PENDING: st.info,
+    }[alert.status]
+    badge(f"**{alert.status.value.upper()}** · {alert.band} / {alert.reason_code} · "
+          f"{alert.language} · `{alert.template_key}`")
+    st.markdown("**Message text as delivered:**")
+    st.info(alert.message_text)
+    if alert.error:
+        st.caption(f"Note: {alert.error}")
+    if alert.provider_message_id:
+        st.caption(f"Provider message id: {alert.provider_message_id}")
+
 
 if __name__ == "__main__":
     main()

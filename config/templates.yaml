@@ -1,0 +1,85 @@
+# =====================================================================
+# ADVISORY MESSAGE TEMPLATES
+# =====================================================================
+#
+# Every message a farmer can receive is written here by hand, in full,
+# in every supported language. There is NO runtime translation anywhere
+# in the send path. Messages are selected by key lookup and interpolated
+# with variables. Nothing else.
+#
+# Why:
+#   - Every possible message must be readable and reviewable before it ships.
+#   - No network call can fail partway through a send.
+#   - A translation glitch producing broken Gurmukhi is unrecoverable once
+#     it has reached a farmer's phone.
+#
+# ---------------------------------------------------------------------
+# SAFETY RULE - READ BEFORE EDITING
+# ---------------------------------------------------------------------
+#
+# WATER-USE ADVICE ONLY. Permitted advice is limited to:
+#   - avoid unnecessary pumping
+#   - irrigate early morning or evening
+#   - check channels for leaks
+#   - contact your Krishi Vigyan Kendra
+#
+# NEVER advise on crop choice, sowing dates, or fertiliser.
+#
+# We derive these messages from a groundwater level slope. A slope tells us
+# how fast the water table is moving. It tells us nothing about which crop
+# suits a field, when to sow, or what to apply to soil. Agronomic advice
+# from a water level slope is unsupportable, and getting it wrong costs a
+# farmer a season. Stay inside water use.
+#
+# ---------------------------------------------------------------------
+# STRUCTURE
+# ---------------------------------------------------------------------
+#
+# Key format:  BAND__REASON_CODE
+# Languages:   en (English), hi (Hindi), pa (Punjabi / Gurmukhi)
+# Variables:   {village}, {district}, {decline_m_per_year}
+#
+# Constraints enforced at import time by messaging/composer.py:
+#   - every key must define all three languages
+#   - no template may be empty
+#   - no template may exceed 350 characters
+#   - the {variable} set must be IDENTICAL across all languages of a key
+#
+# A missing Punjabi template crashes on boot. It never silently falls back
+# to English for a Punjabi farmer.
+# =====================================================================
+
+CRITICAL__DECLINE_LOW_RAIN_HIGH_EXTRACTION:
+  en: "Water alert for {village}, {district}. Groundwater is falling about {decline_m_per_year} m per year. Rainfall has been low and pumping is heavy. Please avoid unnecessary pumping, irrigate early morning or evening, and check your channels for leaks. For help, contact your Krishi Vigyan Kendra."
+  hi: "{district} के {village} के लिए जल चेतावनी। भूजल लगभग {decline_m_per_year} मीटर प्रति वर्ष नीचे जा रहा है। बारिश कम हुई है और पंपिंग अधिक है। कृपया अनावश्यक पंपिंग से बचें, सुबह या शाम को सिंचाई करें, और नालियों में रिसाव की जाँच करें। सहायता के लिए अपने कृषि विज्ञान केंद्र से संपर्क करें।"
+  pa: "{district} ਦੇ {village} ਲਈ ਪਾਣੀ ਚੇਤਾਵਨੀ। ਧਰਤੀ ਹੇਠਲਾ ਪਾਣੀ ਲਗਭਗ {decline_m_per_year} ਮੀਟਰ ਪ੍ਰਤੀ ਸਾਲ ਹੇਠਾਂ ਜਾ ਰਿਹਾ ਹੈ। ਮੀਂਹ ਘੱਟ ਪਿਆ ਹੈ ਅਤੇ ਪੰਪਿੰਗ ਵੱਧ ਹੈ। ਬੇਲੋੜੀ ਪੰਪਿੰਗ ਤੋਂ ਬਚੋ, ਸਵੇਰੇ ਜਾਂ ਸ਼ਾਮ ਸਿੰਚਾਈ ਕਰੋ, ਅਤੇ ਖਾਲਾਂ ਦੀ ਲੀਕ ਜਾਂਚੋ। ਮਦਦ ਲਈ ਕ੍ਰਿਸ਼ੀ ਵਿਗਿਆਨ ਕੇਂਦਰ ਨਾਲ ਸੰਪਰਕ ਕਰੋ।"
+
+CRITICAL__DEFAULT:
+  en: "Water alert for {village}, {district}. Groundwater is falling about {decline_m_per_year} m per year and is now at a critical level. Please avoid unnecessary pumping, irrigate early morning or evening, and check your channels for leaks. For help, contact your Krishi Vigyan Kendra."
+  hi: "{district} के {village} के लिए जल चेतावनी। भूजल लगभग {decline_m_per_year} मीटर प्रति वर्ष नीचे जा रहा है और अब गंभीर स्तर पर है। कृपया अनावश्यक पंपिंग से बचें, सुबह या शाम को सिंचाई करें, और नालियों में रिसाव की जाँच करें। सहायता के लिए अपने कृषि विज्ञान केंद्र से संपर्क करें।"
+  pa: "{district} ਦੇ {village} ਲਈ ਪਾਣੀ ਚੇਤਾਵਨੀ। ਧਰਤੀ ਹੇਠਲਾ ਪਾਣੀ ਲਗਭਗ {decline_m_per_year} ਮੀਟਰ ਪ੍ਰਤੀ ਸਾਲ ਹੇਠਾਂ ਜਾ ਰਿਹਾ ਹੈ ਅਤੇ ਹੁਣ ਗੰਭੀਰ ਪੱਧਰ ਉੱਤੇ ਹੈ। ਬੇਲੋੜੀ ਪੰਪਿੰਗ ਤੋਂ ਬਚੋ, ਸਵੇਰੇ ਜਾਂ ਸ਼ਾਮ ਸਿੰਚਾਈ ਕਰੋ, ਅਤੇ ਖਾਲਾਂ ਦੀ ਲੀਕ ਜਾਂਚੋ। ਮਦਦ ਲਈ ਕ੍ਰਿਸ਼ੀ ਵਿਗਿਆਨ ਕੇਂਦਰ ਨਾਲ ਸੰਪਰਕ ਕਰੋ।"
+
+WARNING__DECLINE_HIGH_EXTRACTION:
+  en: "Water notice for {village}, {district}. Groundwater is falling about {decline_m_per_year} m per year, and pumping in the area is heavy. Please avoid unnecessary pumping and irrigate early morning or evening to reduce loss. For guidance, contact your Krishi Vigyan Kendra."
+  hi: "{district} के {village} के लिए जल सूचना। भूजल लगभग {decline_m_per_year} मीटर प्रति वर्ष नीचे जा रहा है और क्षेत्र में पंपिंग अधिक है। कृपया अनावश्यक पंपिंग से बचें और पानी की हानि घटाने हेतु सुबह या शाम को सिंचाई करें। मार्गदर्शन के लिए अपने कृषि विज्ञान केंद्र से संपर्क करें।"
+  pa: "{district} ਦੇ {village} ਲਈ ਪਾਣੀ ਸੂਚਨਾ। ਧਰਤੀ ਹੇਠਲਾ ਪਾਣੀ ਲਗਭਗ {decline_m_per_year} ਮੀਟਰ ਪ੍ਰਤੀ ਸਾਲ ਹੇਠਾਂ ਜਾ ਰਿਹਾ ਹੈ ਅਤੇ ਇਲਾਕੇ ਵਿੱਚ ਪੰਪਿੰਗ ਵੱਧ ਹੈ। ਬੇਲੋੜੀ ਪੰਪਿੰਗ ਤੋਂ ਬਚੋ ਅਤੇ ਪਾਣੀ ਦਾ ਨੁਕਸਾਨ ਘਟਾਉਣ ਲਈ ਸਵੇਰੇ ਜਾਂ ਸ਼ਾਮ ਸਿੰਚਾਈ ਕਰੋ। ਸਲਾਹ ਲਈ ਕ੍ਰਿਸ਼ੀ ਵਿਗਿਆਨ ਕੇਂਦਰ ਨਾਲ ਸੰਪਰਕ ਕਰੋ।"
+
+WARNING__DECLINE_LOW_RAIN:
+  en: "Water notice for {village}, {district}. Rainfall has been below normal and groundwater is falling about {decline_m_per_year} m per year. Please avoid unnecessary pumping, irrigate early morning or evening, and check channels for leaks. For guidance, contact your Krishi Vigyan Kendra."
+  hi: "{district} के {village} के लिए जल सूचना। बारिश सामान्य से कम रही है और भूजल लगभग {decline_m_per_year} मीटर प्रति वर्ष नीचे जा रहा है। कृपया अनावश्यक पंपिंग से बचें, सुबह या शाम को सिंचाई करें, और नालियों में रिसाव की जाँच करें। मार्गदर्शन हेतु कृषि विज्ञान केंद्र से संपर्क करें।"
+  pa: "{district} ਦੇ {village} ਲਈ ਪਾਣੀ ਸੂਚਨਾ। ਮੀਂਹ ਆਮ ਨਾਲੋਂ ਘੱਟ ਪਿਆ ਹੈ ਅਤੇ ਧਰਤੀ ਹੇਠਲਾ ਪਾਣੀ ਲਗਭਗ {decline_m_per_year} ਮੀਟਰ ਪ੍ਰਤੀ ਸਾਲ ਹੇਠਾਂ ਜਾ ਰਿਹਾ ਹੈ। ਬੇਲੋੜੀ ਪੰਪਿੰਗ ਤੋਂ ਬਚੋ, ਸਵੇਰੇ ਜਾਂ ਸ਼ਾਮ ਸਿੰਚਾਈ ਕਰੋ, ਅਤੇ ਖਾਲਾਂ ਦੀ ਲੀਕ ਜਾਂਚੋ। ਸਲਾਹ ਲਈ ਕ੍ਰਿਸ਼ੀ ਵਿਗਿਆਨ ਕੇਂਦਰ ਨਾਲ ਸੰਪਰਕ ਕਰੋ।"
+
+WARNING__DEFAULT:
+  en: "Water notice for {village}, {district}. Groundwater is falling about {decline_m_per_year} m per year. Please avoid unnecessary pumping and irrigate early morning or evening to reduce loss. For guidance, contact your Krishi Vigyan Kendra."
+  hi: "{district} के {village} के लिए जल सूचना। भूजल लगभग {decline_m_per_year} मीटर प्रति वर्ष नीचे जा रहा है। कृपया अनावश्यक पंपिंग से बचें और पानी की हानि घटाने के लिए सुबह या शाम को सिंचाई करें। मार्गदर्शन के लिए अपने कृषि विज्ञान केंद्र से संपर्क करें।"
+  pa: "{district} ਦੇ {village} ਲਈ ਪਾਣੀ ਸੂਚਨਾ। ਧਰਤੀ ਹੇਠਲਾ ਪਾਣੀ ਲਗਭਗ {decline_m_per_year} ਮੀਟਰ ਪ੍ਰਤੀ ਸਾਲ ਹੇਠਾਂ ਜਾ ਰਿਹਾ ਹੈ। ਬੇਲੋੜੀ ਪੰਪਿੰਗ ਤੋਂ ਬਚੋ ਅਤੇ ਪਾਣੀ ਦਾ ਨੁਕਸਾਨ ਘਟਾਉਣ ਲਈ ਸਵੇਰੇ ਜਾਂ ਸ਼ਾਮ ਸਿੰਚਾਈ ਕਰੋ। ਸਲਾਹ ਲਈ ਕ੍ਰਿਸ਼ੀ ਵਿਗਿਆਨ ਕੇਂਦਰ ਨਾਲ ਸੰਪਰਕ ਕਰੋ।"
+
+WATCH__DEFAULT:
+  en: "Water update for {village}, {district}. Groundwater is being watched and is changing by about {decline_m_per_year} m per year. No action is needed now. Avoiding unnecessary pumping and checking channels for leaks will help. Questions? Contact your Krishi Vigyan Kendra."
+  hi: "{district} के {village} के लिए जल अद्यतन। भूजल पर निगरानी रखी जा रही है और यह लगभग {decline_m_per_year} मीटर प्रति वर्ष बदल रहा है। अभी कोई कार्रवाई आवश्यक नहीं। अनावश्यक पंपिंग से बचना और नालियों में रिसाव की जाँच करना लाभदायक रहेगा। प्रश्न हों तो कृषि विज्ञान केंद्र से संपर्क करें।"
+  pa: "{district} ਦੇ {village} ਲਈ ਪਾਣੀ ਅੱਪਡੇਟ। ਧਰਤੀ ਹੇਠਲੇ ਪਾਣੀ ਉੱਤੇ ਨਜ਼ਰ ਰੱਖੀ ਜਾ ਰਹੀ ਹੈ ਅਤੇ ਇਹ ਲਗਭਗ {decline_m_per_year} ਮੀਟਰ ਪ੍ਰਤੀ ਸਾਲ ਬਦਲ ਰਿਹਾ ਹੈ। ਹੁਣ ਕੋਈ ਕਾਰਵਾਈ ਦੀ ਲੋੜ ਨਹੀਂ। ਬੇਲੋੜੀ ਪੰਪਿੰਗ ਤੋਂ ਬਚਣਾ ਅਤੇ ਖਾਲਾਂ ਦੀ ਲੀਕ ਜਾਂਚਣਾ ਲਾਭਦਾਇਕ ਹੈ। ਸਵਾਲ ਹੋਣ ਤਾਂ ਕ੍ਰਿਸ਼ੀ ਵਿਗਿਆਨ ਕੇਂਦਰ ਨਾਲ ਸੰਪਰਕ ਕਰੋ।"
+
+NORMAL__RECOVERED:
+  en: "Good news for {village}, {district}. Groundwater levels have recovered and are back to a normal range. Continuing to avoid unnecessary pumping and to irrigate early morning or evening will help keep them there. For guidance, contact your Krishi Vigyan Kendra."
+  hi: "{district} के {village} के लिए अच्छी खबर। भूजल स्तर सुधर गया है और सामान्य सीमा में वापस आ गया है। अनावश्यक पंपिंग से बचते रहना और सुबह या शाम को सिंचाई करना इसे बनाए रखने में सहायक होगा। मार्गदर्शन के लिए अपने कृषि विज्ञान केंद्र से संपर्क करें।"
+  pa: "{district} ਦੇ {village} ਲਈ ਚੰਗੀ ਖ਼ਬਰ। ਧਰਤੀ ਹੇਠਲੇ ਪਾਣੀ ਦਾ ਪੱਧਰ ਸੁਧਰ ਗਿਆ ਹੈ ਅਤੇ ਆਮ ਹੱਦ ਵਿੱਚ ਵਾਪਸ ਆ ਗਿਆ ਹੈ। ਬੇਲੋੜੀ ਪੰਪਿੰਗ ਤੋਂ ਬਚਦੇ ਰਹਿਣਾ ਅਤੇ ਸਵੇਰੇ ਜਾਂ ਸ਼ਾਮ ਸਿੰਚਾਈ ਕਰਨਾ ਇਸਨੂੰ ਬਣਾਈ ਰੱਖਣ ਵਿੱਚ ਮਦਦ ਕਰੇਗਾ। ਸਲਾਹ ਲਈ ਕ੍ਰਿਸ਼ੀ ਵਿਗਿਆਨ ਕੇਂਦਰ ਨਾਲ ਸੰਪਰਕ ਕਰੋ।"
