@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JALSACHET | Groundwater &amp; Aquifer Report</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Chart.js & Plugins -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+
+    <!-- Leaflet CSS & JS for Interactive Hydro Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <!-- Subtle Background Ambient Glows -->
+    <div class="ambient-glow glow-ocean"></div>
+    <div class="ambient-glow glow-cyan"></div>
+    <div class="ambient-glow glow-mint"></div>
+    <div id="dropletsContainer" class="droplets-container"></div>
+
+    <!-- Top Navigation Header (No Side Navbar!) -->
+    <header class="top-nav">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <div class="logo-icon">
+                    <i data-lucide="droplet"></i>
+                </div>
+                <div class="brand-text">
+                    <span class="brand-title">JALSACHET</span>
+                    <span class="brand-subtitle">Groundwater &amp; Aquifer Report</span>
+                </div>
+            </div>
+
+            <!-- Header Quick Station Selector -->
+            <div class="nav-center">
+                <div class="station-select-wrapper">
+                    <i data-lucide="map-pin" class="select-icon"></i>
+                    <select id="headerStationSelect" class="nav-select">
+                        <option value="">Loading stations...</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Top Right Action Controls with Theme Toggle -->
+            <div class="nav-actions">
+                <div class="mode-badge" id="dataModeBadge">
+                    <span class="pulse-dot"></span> REAL (DB)
+                </div>
+
+                <!-- LIGHT / DARK MODE TOGGLE SWITCH -->
+                <button id="themeToggleBtn" class="btn-theme-toggle" title="Toggle Light / Dark Mode">
+                    <i data-lucide="sun" class="icon-sun"></i>
+                    <i data-lucide="moon" class="icon-moon"></i>
+                </button>
+                
+                <!-- TOP RIGHT REFRESH BUTTON -->
+                <button id="refreshBtn" class="btn-refresh" title="Refresh Data">
+                    <i data-lucide="refresh-cw" class="refresh-icon"></i>
+                    <span>Refresh Data</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="main-wrapper">
+
+        <!-- HERO SECTION -->
+        <section class="hero-section">
+            <div class="hero-content reveal reveal-up">
+                <div class="hero-tag">
+                    <i data-lucide="waves"></i> DWLR – NWDP Groundwater Data Analysis
+                </div>
+                <h1 class="hero-title">
+                    Groundwater Recharge &amp;<br>
+                    <span class="gradient-text">Aquifer Status Report</span>
+                </h1>
+                <p class="hero-subtitle">
+                    Automated trend analysis, 10-year linear rate monitoring, and seasonal risk evaluation for Punjab groundwater observation wells.
+                </p>
+
+                <!-- Floating Quick Hydro Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card reveal reveal-scale" style="--delay: 100ms;">
+                        <div class="stat-icon icon-ocean">
+                            <i data-lucide="droplet"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="statStations">15</span>
+                            <span class="stat-label">Monitored Wells</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card reveal reveal-scale" style="--delay: 200ms;">
+                        <div class="stat-icon icon-cyan">
+                            <i data-lucide="layers"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="statReadings">2,619</span>
+                            <span class="stat-label">Total Readings</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card reveal reveal-scale" style="--delay: 300ms;">
+                        <div class="stat-icon icon-mint">
+                            <i data-lucide="activity"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="statTrendRate">+0.13 m/yr</span>
+                            <span class="stat-label">Avg Water Table Shift</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card reveal reveal-scale" style="--delay: 400ms;">
+                        <div class="stat-icon icon-gold">
+                            <i data-lucide="shield-alert"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="statRiskCount">0 Critical</span>
+                            <span class="stat-label">Aquifer Risk Alerts</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- STATION EXPLORER & MAP SECTION -->
+        <section class="explorer-section reveal reveal-up">
+            <div class="section-header">
+                <div>
+                    <h2 class="section-title">Punjab Monitoring Station Network</h2>
+                    <p class="section-subtitle">Select a monitoring well station or inspect locations on the spatial map</p>
+                </div>
+
+                <!-- Filter Controls -->
+                <div class="filter-bar">
+                    <div class="search-box">
+                        <i data-lucide="search"></i>
+                        <input type="text" id="stationSearch" placeholder="Search station ID, name or district...">
+                    </div>
+                    <div class="filter-pills" id="filterPills">
+                        <button class="pill active" data-filter="ALL">All Stations</button>
+                        <button class="pill pill-ocean" data-filter="Recharging">Recharging</button>
+                        <button class="pill pill-mint" data-filter="Stable">Stable</button>
+                        <button class="pill pill-alert" data-filter="Depleting">Depleting</button>
+                        <button class="pill pill-alert" data-filter="High Risk">High Risk</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Two Column Layout: Cards Grid + Interactive Map -->
+            <div class="explorer-grid">
+                <!-- Stations Grid -->
+                <div class="stations-grid" id="stationsContainer">
+                    <!-- Dynamic Station Cards -->
+                </div>
+
+                <!-- Map Container -->
+                <div class="map-card reveal reveal-right">
+                    <div class="map-header">
+                        <span><i data-lucide="map-pin"></i> Spatial Station Network Map</span>
+                        <span class="map-count" id="mapPointCount">15 Stations</span>
+                    </div>
+                    <div id="hydroMap" class="hydro-map"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- DETAILED ANALYTICS SECTION -->
+        <section class="analytics-section reveal reveal-up" id="analyticsSection">
+            <div class="station-detail-banner" id="stationDetailBanner">
+                <div class="banner-main">
+                    <div class="banner-title-group">
+                        <div class="station-badge-icon" id="detailStatusIcon">
+                            <i data-lucide="droplet"></i>
+                        </div>
+                        <div>
+                            <h2 class="station-detail-title" id="detailStationName">Station AAXI067</h2>
+                            <p class="station-detail-subtitle" id="detailStationMeta">ID: AAXI067 • District: Punjab • Coords: 31.7665, 76.3577</p>
+                        </div>
+                    </div>
+                    <div class="risk-badge-large" id="detailRiskBadge">
+                        MODERATE RISK
+                    </div>
+                </div>
+
+                <!-- Metric Summary Highlights Grid -->
+                <div class="detail-metrics-grid">
+                    <div class="detail-metric-card reveal reveal-up" style="--delay: 100ms;">
+                        <span class="metric-title">10-Year Trend Status</span>
+                        <div class="metric-value-row">
+                            <span class="metric-big-text" id="detailTrendStatus">DEPLETING</span>
+                            <span class="trend-indicator-pill depleting" id="detailTrendPill">+2.95 m/yr</span>
+                        </div>
+                        <span class="metric-subtext">Water level depth change below ground level</span>
+                    </div>
+
+                    <div class="detail-metric-card reveal reveal-up" style="--delay: 200ms;">
+                        <span class="metric-title">Aquifer Risk Index</span>
+                        <div class="metric-value-row">
+                            <span class="metric-big-text" id="detailRiskScore">42.5 <small>/ 100</small></span>
+                        </div>
+                        <div class="risk-gauge-bar">
+                            <div class="risk-gauge-fill" id="detailRiskGauge" style="width: 42.5%;"></div>
+                        </div>
+                    </div>
+
+                    <div class="detail-metric-card reveal reveal-up" style="--delay: 300ms;">
+                        <span class="metric-title">Seasonal Deviation</span>
+                        <div class="metric-value-row">
+                            <span class="metric-big-text" id="detailSeasonalDev">+0.45 m</span>
+                        </div>
+                        <span class="metric-subtext">Comparison vs 2-year seasonal mean</span>
+                    </div>
+
+                    <div class="detail-metric-card reveal reveal-up" style="--delay: 400ms;">
+                        <span class="metric-title">Record Span</span>
+                        <div class="metric-value-row">
+                            <span class="metric-big-text" id="detailSpan">286 Days</span>
+                        </div>
+                        <span class="metric-subtext" id="detailReadingsCount">283 readings analyzed</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart & Executive Insights Grid -->
+            <div class="analytics-grid">
+                <!-- Water Level Chart Card -->
+                <div class="chart-card reveal reveal-left">
+                    <div class="chart-header">
+                        <div>
+                            <h3 class="chart-title">Groundwater Level Hydrograph</h3>
+                            <p class="chart-subtitle">Depth below ground level (m) with linear regression trend overlay</p>
+                        </div>
+                        <div class="chart-legend-custom">
+                            <span class="legend-item"><span class="legend-color color-blue"></span> Water Level (m)</span>
+                            <span class="legend-item"><span class="legend-color color-cyan"></span> Trend Line</span>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="waterChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Executive Hydrogeological Insight Card -->
+                <div class="insight-card reveal reveal-right">
+                    <div class="insight-header">
+                        <div class="insight-icon">
+                            <i data-lucide="sparkles"></i>
+                        </div>
+                        <div>
+                            <h3 class="insight-title">Hydrogeological Advisory</h3>
+                            <p class="insight-subtitle">Automated station evaluation & recommendations</p>
+                        </div>
+                    </div>
+                    <div class="insight-body" id="insightBody">
+                        <!-- Dynamic Insight Text -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Toast Notification Container -->
+    <div id="toast" class="toast">
+        <i data-lucide="check-circle" class="toast-icon"></i>
+        <span id="toastMsg">Data refreshed successfully!</span>
+    </div>
+
+    <!-- Application Script -->
+    <script src="/static/app.js"></script>
+</body>
+</html>
