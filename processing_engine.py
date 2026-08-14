@@ -12,10 +12,17 @@ import pandas as pd
 from config import config
 from models.metrics import Metrics, RiskLevel, TrendIndicator
 from models.reading import Reading
-from processing.trend_engine import TrendEngine
+from processing.trend_engine import (
+    LOW_STRENGTH_THRESHOLD,
+    MEDIUM_STRENGTH_THRESHOLD,
+    TrendEngine,
+)
 from processing.seasonal_engine import SeasonalEngine
 
 logger = logging.getLogger(__name__)
+
+# Mean days per year, for converting m/day slopes to m/yr rates.
+DAYS_PER_YEAR = 365.25
 
 
 class ProcessingEngine:
@@ -56,9 +63,14 @@ class ProcessingEngine:
         if trend_metrics:
             trend_indicator = trend_metrics.status
             trend_magnitude = trend_metrics.magnitude
+            # Annualised rate, used for risk banding. Must be window-independent:
+            # magnitude is slope * window_days, so it scales with the window and
+            # cannot be compared against fixed thresholds.
+            trend_rate_m_per_yr = trend_metrics.slope * DAYS_PER_YEAR
         else:
             trend_indicator = TrendIndicator.INSUFFICIENT_DATA
             trend_magnitude = None
+            trend_rate_m_per_yr = None
         
         # Calculate seasonal deviation using SeasonalEngine
         seasonal_metrics = self.seasonal_engine.calculate_seasonal_deviation(
@@ -76,7 +88,9 @@ class ProcessingEngine:
             seasonal_baseline = None
         
         # Calculate risk index
-        risk_index, risk_level = self._calculate_risk_index(trend_indicator, trend_magnitude, seasonal_deviation)
+        risk_index, risk_level = self._calculate_risk_index(
+            trend_indicator, trend_rate_m_per_yr, seasonal_deviation
+        )
         
         return Metrics(
             station_id=station_id,
@@ -143,7 +157,7 @@ class ProcessingEngine:
     def _calculate_risk_index(
         self,
         trend_indicator: TrendIndicator,
-        trend_magnitude: Optional[float],
+        trend_rate_m_per_yr: Optional[float],
         seasonal_deviation: Optional[float]
     ) -> Tuple[Optional[float], Optional[RiskLevel]]:
         """
@@ -151,7 +165,10 @@ class ProcessingEngine:
 
         Args:
             trend_indicator: Trend classification
-            trend_magnitude: Magnitude of trend change
+            trend_rate_m_per_yr: Annualised rate of change (m/yr). Deliberately a
+                rate, not a magnitude-over-window: magnitude is slope*window_days
+                and so rescales with the window, which would silently reband every
+                station whenever trend_window_days changed.
             seasonal_deviation: Deviation from seasonal baseline
 
         Returns:
@@ -165,18 +182,19 @@ class ProcessingEngine:
             trend_score = 0.0
         elif trend_indicator == TrendIndicator.STABLE:
             trend_score = 10.0
-        else:  # DEPLETING — score by magnitude
-            if trend_magnitude is None:
+        else:  # DEPLETING — score by annualised rate
+            if trend_rate_m_per_yr is None:
                 trend_score = 50.0
             else:
-                abs_magnitude = abs(trend_magnitude)
-                # magnitude = slope * window_days (365)
-                # LOW: < 0.0007 * 365 = 0.255m
-                # MEDIUM: 0.255m - 0.5475m
-                # STRONG: > 0.5475m
-                if abs_magnitude < 0.255:
+                abs_rate = abs(trend_rate_m_per_yr)
+                # Bands preserve the original intent: these are the strength
+                # thresholds from trend_engine expressed in m/yr, i.e.
+                #   LOW    < 0.0007 m/day * 365.25 = 0.256 m/yr
+                #   MEDIUM 0.256 - 0.548 m/yr
+                #   STRONG > 0.548 m/yr
+                if abs_rate < LOW_STRENGTH_THRESHOLD * DAYS_PER_YEAR:
                     trend_score = 50.0
-                elif abs_magnitude < 0.5475:
+                elif abs_rate < MEDIUM_STRENGTH_THRESHOLD * DAYS_PER_YEAR:
                     trend_score = 75.0
                 else:
                     trend_score = 100.0

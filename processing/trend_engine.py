@@ -21,6 +21,13 @@ NOISE_FLOOR = 0.0005  # m/day - slopes below this magnitude are considered noise
 LOW_STRENGTH_THRESHOLD = 0.0007
 MEDIUM_STRENGTH_THRESHOLD = 0.0015
 
+# Outlier guard (meters). Readings at or beyond this magnitude are sensor or
+# transcription errors, not water levels: the raw CSV's target column spans
+# -2014 m to +2431 m across 1,455 rows (0.35%) touching 61 stations. A single
+# such value will dominate a least-squares fit, so they are dropped before
+# regression.
+OUTLIER_ABS_THRESHOLD = 100.0
+
 
 class TrendEngine:
     """Engine for calculating groundwater level trends using linear regression."""
@@ -28,33 +35,47 @@ class TrendEngine:
     def calculate_trend(
         self,
         readings: List[Reading],
-        window_days: int = 90
+        window_days: int = 3650
     ) -> Optional[TrendMetrics]:
         """
         Calculate trend using linear regression over last N days.
-        
+
         Uses actual day deltas (timestamp differences) for x-values to handle
         irregular sampling correctly.
-        
+
         Args:
             readings: List of Reading objects (should be sorted by timestamp)
-            window_days: Analysis window in days (default 90)
-        
+            window_days: Analysis window in days (default 3650, i.e. ~10 years).
+                The default was 90, but the median station is sampled only every
+                ~92 days, so a 90-day window frequently captured fewer than the
+                2 points regression requires and returned None.
+
         Returns:
             TrendMetrics object or None if insufficient data (< 2 points)
         """
         if not readings:
             logger.warning("No readings provided for trend calculation")
             return None
-        
+
+        # Outlier guard, applied before windowing so a bad value cannot also
+        # drag the window anchor. See OUTLIER_ABS_THRESHOLD above.
+        valid_readings = [
+            r for r in readings
+            if r.water_level_m is not None
+            and abs(r.water_level_m) < OUTLIER_ABS_THRESHOLD
+        ]
+        if not valid_readings:
+            logger.warning("No readings survived the outlier guard")
+            return None
+
         # Filter to last N days from latest reading
-        latest_date = max(r.timestamp for r in readings)
+        latest_date = max(r.timestamp for r in valid_readings)
         cutoff_date = latest_date - timedelta(days=window_days)
         filtered_readings = [
-            r for r in readings
-            if r.timestamp >= cutoff_date and r.water_level_m is not None
+            r for r in valid_readings
+            if r.timestamp >= cutoff_date
         ]
-        
+
         # Need at least 2 points for linear regression
         if len(filtered_readings) < 2:
             logger.warning(
@@ -82,14 +103,12 @@ class TrendEngine:
         if np.all(y_values == y_values[0]):
             slope = 0.0
             logger.info("All readings identical, slope = 0.0")
-            print("TREND DEBUG", readings[0].station_id, "slope =", slope)
         else:
             # Perform linear regression: y = slope * x + intercept
             # Using numpy.polyfit with degree 1
             coefficients = np.polyfit(x_values, y_values, deg=1)
             slope = float(coefficients[0])  # m/day
-            print("TREND DEBUG", readings[0].station_id, "slope =", slope)
-        
+
         # Classify trend status
         # For depth below ground: negative slope = Recharging (water rising), positive slope = Depleting (water falling)
         # Use noise dead-zone to avoid classifying small slopes as trends

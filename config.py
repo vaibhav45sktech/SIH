@@ -11,8 +11,14 @@ from typing import Optional
 class Config:
     """Application configuration settings."""
     
-    # Data source mode: 'api' or 'mock'
-    data_mode: str = os.getenv("DATA_MODE", "mock")
+    # Data source mode: 'db' | 'api' | 'mock'
+    #   db   - read real readings from the local SQLite store (default)
+    #   api  - fetch live from the NWDP API
+    #   mock - synthesise readings via api_client's generator
+    # Defaults to 'db' so the dashboard always shows real CGWB data. Mock data
+    # is synthetic and must never be served unless explicitly requested with
+    # DATA_MODE=mock, since it is indistinguishable from real readings on screen.
+    data_mode: str = os.getenv("DATA_MODE", "db")
     
     # NWDP API settings
     nwdp_api_base_url: str = os.getenv("NWDP_API_BASE_URL", "https://api.nwdp.gov.in")
@@ -23,7 +29,12 @@ class Config:
     db_path: str = os.getenv("DB_PATH", "groundwater_data.db")
     
     # Processing settings
-    trend_window_days: int = int(os.getenv("TREND_WINDOW_DAYS", "365"))
+    # 3650 days (~10 years) to match TrendEngine.calculate_trend's default. This
+    # value is passed explicitly by ProcessingEngine, so it SHADOWS that default:
+    # leaving it at 365 made the dashboard report a 1-year trend while verify.py
+    # reported a 10-year one. The median station is sampled every ~92 days, so a
+    # 1-year window rests on only ~4 points.
+    trend_window_days: int = int(os.getenv("TREND_WINDOW_DAYS", "3650"))
     seasonal_comparison_years: int = int(os.getenv("SEASONAL_COMPARISON_YEARS", "2"))
     
     # Risk index weights
@@ -38,12 +49,16 @@ class Config:
     mock_data_path: Optional[str] = os.getenv("MOCK_DATA_PATH", None)
     
     def is_mock_mode(self) -> bool:
-        """Check if running in mock data mode."""
+        """Check if running in mock (synthetic) data mode. Opt-in only."""
         return self.data_mode.lower() == "mock"
-    
+
     def is_api_mode(self) -> bool:
         """Check if running in API mode."""
         return self.data_mode.lower() == "api"
+
+    def is_db_mode(self) -> bool:
+        """Check if reading real stored readings from the local SQLite store."""
+        return self.data_mode.lower() == "db"
 
 
 # Global configuration instance
